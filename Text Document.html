@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D ҚАЛА: GTA СТИЛІНДЕГІ ОЙЫН</title>
+    <!-- Tailwind CSS заманауи интерфейс үшін -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js 3D қозғалтқышы -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts: Montserrat және Orbitron сандық көрсеткіштер үшін -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;900&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #090d16;
+            font-family: 'Montserrat', sans-serif;
+        }
+        #game-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            z-index: 1;
+        }
+        .hud-font {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .gta-shadow {
+            text-shadow: 2px 2px 0px #000, -1px -1px 0px #000, 1px -1px 0px #000, -1px 1px 0px #000, 0px 4px 10px rgba(0,0,0,0.8);
+        }
+        .gta-box {
+            background: rgba(12, 17, 29, 0.78);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        @keyframes pulse-star {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px #ef4444); }
+            50% { transform: scale(1.2); filter: drop-shadow(0 0 14px #3b82f6); }
+        }
+        .wanted-active {
+            animation: pulse-star 0.6s infinite;
+        }
+        @keyframes siren-flash {
+            0%, 100% { box-shadow: inset 0 0 40px rgba(239, 68, 68, 0.35); }
+            50% { box-shadow: inset 0 0 40px rgba(59, 130, 246, 0.35); }
+        }
+        .siren-overlay {
+            animation: siren-flash 0.5s infinite;
+        }
+        /* Мобильді батырмалар эффектісі */
+        .touch-btn:active, .touch-btn.pressed {
+            transform: scale(0.92);
+            background-color: rgba(255, 255, 255, 0.35);
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Ойын кенебі -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Полиция сиренасының экран жиегіндегі жарығы -->
+    <div id="siren-effect" class="fixed inset-0 pointer-events-none z-10 hidden siren-overlay"></div>
+
+    <!-- Бастапқы Мәзір / Іске қосу экраны -->
+    <div id="start-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-950/95 via-slate-900/90 to-emerald-950/90 p-4">
+        <div class="gta-box max-w-2xl w-full rounded-3xl p-6 sm:p-10 text-white border-2 border-emerald-500/40 relative overflow-hidden">
+            <div class="absolute -top-24 -right-24 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="inline-block px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold tracking-widest uppercase mb-3">
+                Ашық Әлем • 3D Симулятор
+            </div>
+            <h1 class="text-3xl sm:text-5xl font-black tracking-tight mb-2 gta-shadow text-transparent bg-clip-text bg-gradient-to-r from-white via-emerald-200 to-amber-300">
+                3D ҚАЛА: GTA СТИЛІНДЕГІ ОЙЫН
+            </h1>
+            <p class="text-slate-300 text-sm sm:text-base mb-6 leading-relaxed">
+                Түнгі және күндізгі мегаполисте еркін жүйткіңіз, көліктерді ауыстырыңыз, ақша жинаңыз, уақытқа жарыс миссияларын орындаңыз және полиция қуғынынан сытылып шығыңыз!
+            </p>
+
+            <!-- Басқару нұсқаулығы -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-7 text-xs sm:text-sm">
+                <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700/70">
+                    <div class="font-bold text-emerald-400 mb-1.5 flex items-center gap-2">
+                        <span>⌨️</span> Пернетақта (Компьютер)
+                    </div>
+                    <ul class="space-y-1 text-slate-300">
+                        <li><span class="text-white font-bold">W A S D / Бағыттар:</span> Жүру / Бұрылу</li>
+                        <li><span class="text-white font-bold">SPACE (Бос орын):</span> Дрифт (Қол тежегіш) / Секіру</li>
+                        <li><span class="text-white font-bold">F:</span> Көлікке отыру / Көліктен шығу</li>
+                        <li><span class="text-white font-bold">C:</span> Камера түрін ауыстыру</li>
+                        <li><span class="text-white font-bold">R:</span> Көлікті жолға қайта қою</li>
+                    </ul>
+                </div>
+                <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700/70">
+                    <div class="font-bold text-amber-400 mb-1.5 flex items-center gap-2">
+                        <span>🎯</span> Ойын Ережелері мен Нүктелер
+                    </div>
+                    <ul class="space-y-1 text-slate-300">
+                        <li><span class="text-emerald-400 font-bold">Жасыл ақша:</span> Қаладан қолма-қол ақша жинау</li>
+                        <li><span class="text-amber-400 font-bold">Сары шеңбер:</span> Уақытқа жеткізу миссиясы</li>
+                        <li><span class="text-sky-400 font-bold">Көк шеңбер (Жөндеу):</span> Іздеу жұлдыздарын өшіру</li>
+                        <li><span class="text-rose-400 font-bold">Назар аударыңыз:</span> Қатты жылдамдық пен соқтығысу полицияны шақырады!</li>
+                    </ul>
+                </div>
+            </div>
+
+            <button id="start-btn" class="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-lg sm:text-xl tracking-wider uppercase shadow-lg shadow-emerald-500/30 transition transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer">
+                ОЙЫНДЫ БАСТАУ 🚀
+            </button>
+        </div>
+    </div>
+
+    <!-- Негізгі Ойын HUD Интерфейсі -->
+    <div id="hud" class="fixed inset-0 pointer-events-none z-20 hidden flex flex-col justify-between p-3 sm:p-5">
+        
+        <!-- Жоғарғы панель: Сол жақта Миссия/Хабарлама, Оң жақта GTA Статистикасы -->
+        <div class="flex justify-between items-start gap-2">
+            
+            <!-- Жоғарғы сол жақ: Күй индикаторы және Басқару батырмалары -->
+            <div class="flex flex-col gap-2 pointer-events-auto">
+                <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <button id="btn-daynight" class="gta-box px-3 py-2 rounded-xl text-white text-xs sm:text-sm font-bold hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer">
+                        <span id="daynight-icon">🌙</span>
+                        <span>КҮН / ТҮН</span>
+                    </button>
+                    <button id="btn-camera" class="gta-box px-3 py-2 rounded-xl text-white text-xs sm:text-sm font-bold hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer">
+                        <span>🎥</span>
+                        <span id="cam-label">КАМЕРА: 3-ЖАҚ</span>
+                    </button>
+                    <button id="btn-sound" class="gta-box px-3 py-2 rounded-xl text-white text-xs sm:text-sm font-bold hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer">
+                        <span id="sound-icon">🔊</span>
+                        <span class="hidden sm:inline">ДЫБЫС</span>
+                    </button>
+                    <button id="btn-reset" class="gta-box px-3 py-2 rounded-xl text-amber-300 text-xs sm:text-sm font-bold hover:bg-slate-800 transition flex items-center gap-1 cursor-pointer" title="Көлікті түзету (R)">
+                        <span>🔄</span>
+                        <span class="hidden sm:inline">ҚАЙТА ҚОЮ</span>
+                    </button>
+                </div>
+
+                <!-- Миссия хабарлама тақтасы -->
+                <div id="mission-box" class="gta-box px-4 py-2.5 rounded-2xl border-l-4 border-amber-400 max-w-xs sm:max-w-sm transition-all">
+                    <div class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-400" id="mission-title">
+                        ЕРКІН ЖҮРУ РЕЖИМІ
+                    </div>
+                    <div class="text-xs sm:text-sm text-white font-medium mt-0.5" id="mission-desc">
+                        Сары шеңберге барып миссия бастаңыз немесе жасыл ақшаларды жинаңыз.
+                    </div>
+                    <div id="mission-timer-bar" class="hidden mt-2">
+                        <div class="flex justify-between text-xs font-bold text-amber-300 mb-1">
+                            <span>ҚАЛҒАН УАҚЫТ:</span>
+                            <span id="mission-time-text" class="hud-font">30.0 с</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div id="mission-progress" class="h-full bg-amber-400 transition-all duration-100" style="width: 100%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Жоғарғы оң жақ: Ақша, Іздеу деңгейі (Жұлдыздар), Жылдамдық -->
+            <div class="flex flex-col items-end gap-1.5 sm:gap-2">
+                <!-- Ақша -->
+                <div class="gta-box px-4 py-1.5 sm:py-2 rounded-2xl flex items-center gap-2 border border-emerald-500/30">
+                    <span class="text-xs font-bold text-slate-400 uppercase hidden sm:inline">АҚША:</span>
+                    <span id="cash-display" class="hud-font text-xl sm:text-3xl font-black text-emerald-400 gta-shadow">$0000500</span>
+                </div>
+
+                <!-- Іздеу деңгейі (Wanted Stars) -->
+                <div class="gta-box px-3 py-1.5 rounded-2xl flex items-center gap-2">
+                    <span class="text-[10px] sm:text-xs font-bold text-slate-300 uppercase">ІЗДЕУ ДЕҢГЕЙІ:</span>
+                    <div id="stars-container" class="flex gap-1 text-base sm:text-xl">
+                        <span class="star text-slate-600">★</span>
+                        <span class="star text-slate-600">★</span>
+                        <span class="star text-slate-600">★</span>
+                        <span class="star text-slate-600">★</span>
+                        <span class="star text-slate-600">★</span>
+                    </div>
+                </div>
+
+                <!-- Жылдамдық және Режим -->
+                <div class="gta-box px-4 py-2 rounded-2xl flex items-center gap-3">
+                    <div>
+                        <div class="text-[10px] font-bold text-slate-400 uppercase">ЖЫЛДАМДЫҚ</div>
+                        <div class="flex items-baseline gap-1">
+                            <span id="speed-display" class="hud-font text-2xl sm:text-3xl font-black text-white">0</span>
+                            <span class="text-xs font-bold text-sky-400">КМ/САҒ</span>
+                        </div>
+                    </div>
+                    <div class="h-8 w-[1px] bg-slate-700"></div>
+                    <div>
+                        <div class="text-[10px] font-bold text-slate-400 uppercase">КҮЙІ</div>
+                        <div id="mode-display" class="text-xs sm:text-sm font-black text-amber-400">КӨЛІКТЕ</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Орталық қалқымалы хабарлама (Toast / Notification) -->
+        <div id="center-toast" class="self-center px-6 py-3 rounded-2xl bg-slate-950/90 border-2 border-emerald-400 text-white font-black text-base sm:text-xl tracking-wide uppercase gta-shadow opacity-0 transition-opacity duration-300 text-center">
+            +$250 ЖИНАЛДЫ!
+        </div>
+
+        <!-- Төменгі панель: Сол жақта Мини-карта (Радар), Оң жақта Мобильді басқару және Іс-әрекет -->
+        <div class="flex justify-between items-end w-full">
+            
+            <!-- Мини-карта (Радар) -->
+            <div class="relative pointer-events-auto">
+                <div class="w-32 h-32 sm:w-44 sm:h-44 rounded-full overflow-hidden border-4 border-slate-800/90 shadow-2xl bg-slate-950 relative">
+                    <canvas id="minimap-canvas" width="180" height="180" class="w-full h-full block"></canvas>
+                    <!-- Радар ортасындағы бағыт көрсеткіші -->
+                    <div class="absolute inset-0 pointer-events-none flex items-center justify-center">
+                        <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[12px] border-b-white drop-shadow"></div>
+                    </div>
+                </div>
+                <div class="mt-1 text-center">
+                    <span class="bg-slate-900/85 text-slate-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-slate-700">
+                        N • РАДАР
+                    </span>
+                </div>
+            </div>
+
+            <!-- Ортаңғы төменгі көлікке отыру/шығу батырмасы (барлық құрылғыларға ыңғайлы) -->
+            <div class="flex flex-col items-center gap-2 pointer-events-auto mb-1">
+                <button id="btn-enter-exit" class="gta-box px-4 py-2.5 sm:px-5 sm:py-3 rounded-2xl border-2 border-amber-400/70 text-amber-300 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg hover:bg-amber-500/20 active:scale-95 transition cursor-pointer">
+                    🚪 КӨЛІКТЕН ШЫҒУ (F)
+                </button>
+            </div>
+
+            <!-- Мобильді / Сенсорлық басқару батырмалары (Телефон мен планшеттерде көрінеді, экран кіші болса) -->
+            <div id="mobile-controls" class="flex flex-col gap-2 pointer-events-auto md:hidden">
+                <div class="flex gap-2 justify-end">
+                    <button data-key="Space" class="touch-btn w-14 h-12 rounded-2xl gta-box text-amber-300 font-black text-xs flex items-center justify-center border border-amber-400/40">
+                        ДРИФТ
+                    </button>
+                    <button data-key="ArrowUp" class="touch-btn w-14 h-14 rounded-2xl gta-box text-emerald-400 font-black text-lg flex items-center justify-center border border-emerald-400/50">
+                        ГАЗ
+                    </button>
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <button data-key="ArrowLeft" class="touch-btn w-14 h-14 rounded-2xl gta-box text-white font-black text-xl flex items-center justify-center">
+                        ◀
+                    </button>
+                    <button data-key="ArrowDown" class="touch-btn w-14 h-14 rounded-2xl gta-box text-rose-400 font-black text-xs flex items-center justify-center border border-rose-400/50">
+                        ТОҚТАУ
+                    </button>
+                    <button data-key="ArrowRight" class="touch-btn w-14 h-14 rounded-2xl gta-box text-white font-black text-xl flex items-center justify-center">
+                        ▶
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+    /**
+     * 3D ҚАЛА: GTA СТИЛІНДЕГІ ОЙЫН
+     * Толықтай автономды (Single-file) Three.js ойыны.
+     * GitHub Pages-ке тікелей жүктеуге дайын.
+     */
+
+    // ==========================================
+    // 1. ДЫБЫС СИНТЕЗАТОРЫ (WEB AUDIO API)
+    // ==========================================
+    class SoundEngine {
+        constructor() {
+            this.ctx = null;
+            this.muted = false;
+            this.engineOsc = null;
+            this.engineGain = null;
+            this.sirenOsc = null;
+            this.sirenGain = null;
+            this.initialized = false;
+        }
+
+        init() {
+            if (this.initialized) return;
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+
+                // Қозғалтқыш дыбысы
+                this.engineOsc = this.ctx.createOscillator();
+                this.engineGain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+                
+                this.engineOsc.type = 'sawtooth';
+                this.engineOsc.frequency.value = 45;
+                filter.type = 'lowpass';
+                filter.frequency.value = 220;
+                this.engineGain.gain.value = 0.0;
+
+                this.engineOsc.connect(filter);
+                filter.connect(this.engineGain);
+                this.engineGain.connect(this.ctx.destination);
+                this.engineOsc.start();
+
+                // Полиция сиренасы
+                this.sirenOsc = this.ctx.createOscillator();
+                this.sirenGain = this.ctx.createGain();
+                this.sirenOsc.type = 'triangle';
+                this.sirenOsc.frequency.value = 600;
+                this.sirenGain.gain.value = 0.0;
+
+                this.sirenOsc.connect(this.sirenGain);
+                this.sirenGain.connect(this.ctx.destination);
+                this.sirenOsc.start();
+
+                this.initialized = true;
+            } catch (e) {
+                console.warn("Дыбыс жүйесі қосылмады:", e);
+            }
+        }
+
+        toggleMute() {
+            this.muted = !this.muted;
+            if (this.muted && this.initialized) {
+                this.engineGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+                this.sirenGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+            }
+            return this.muted;
+        }
+
+        update(speedRatio, isDriving, wantedLevel, time) {
+            if (!this.initialized || this.muted) return;
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+
+            // Қозғалтқыш жиілігі жылдамдыққа байланысты өзгереді
+            if (isDriving) {
+                const targetFreq = 45 + Math.abs(speedRatio) * 130;
+                const targetGain = 0.04 + Math.abs(speedRatio) * 0.05;
+                this.engineOsc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.08);
+                this.engineGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.08);
+            } else {
+                this.engineGain.gain.setTargetAtTime(0.0, this.ctx.currentTime, 0.1);
+            }
+
+            // Сирена дыбысы іздеу деңгейі > 0 болғанда
+            if (wantedLevel > 0) {
+                const sirenFreq = 650 + Math.sin(time * 7) * 220;
+                this.sirenOsc.frequency.setTargetAtTime(sirenFreq, this.ctx.currentTime, 0.05);
+                this.sirenGain.gain.setTargetAtTime(0.035, this.ctx.currentTime, 0.1);
+            } else {
+                this.sirenGain.gain.setTargetAtTime(0.0, this.ctx.currentTime, 0.1);
+            }
+        }
+
+        playPickup(type = 'cash') {
+            if (!this.initialized || this.muted) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            
+            const now = this.ctx.currentTime;
+            if (type === 'cash') {
+                osc.frequency.setValueAtTime(587.33, now); // D5
+                osc.frequency.setValueAtTime(880, now + 0.08); // A5
+            } else if (type === 'mission') {
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                osc.frequency.setValueAtTime(1046.5, now + 0.3); // C6
+            } else if (type === 'crash') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(110, now);
+                osc.frequency.exponentialRampToValueAtTime(35, now + 0.2);
+            }
+
+            gain.gain.setValueAtTime(0.12, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.36);
+        }
+    }
+
+    // ==========================================
+    // 2. ОЙЫН КОНФИГУРАЦИЯСЫ ЖӘНЕ КҮЙІ
+    // ==========================================
+    const CITY_CONFIG = {
+        gridSize: 7,          // 7x7 квартал
+        blockSize: 48,        // Квартал өлшемі
+        roadWidth: 16,        // Жолдың ені
+        get totalStep() { return this.blockSize + this.roadWidth; },
+        get halfWorld() { return (this.gridSize * this.totalStep) / 2; }
+    };
+
+    const state = {
+        started: false,
+        isNight: true,
+        cash: 500,
+        wantedLevel: 0,
+        wantedTimer: 0,
+        cameraMode: 0, // 0: 3-жақ, 1: Капот (1-жақ), 2: Жоғарыдан (GTA 2)
+        inVehicle: true,
+        activeCar: null,
+        missionActive: false,
+        missionTimeLeft: 0,
+        missionMaxTime: 35,
+        missionTarget: null
+    };
+
+    const keys = {
+        ArrowUp: false, KeyW: false,
+        ArrowDown: false, KeyS: false,
+        ArrowLeft: false, KeyA: false,
+        ArrowRight: false, KeyD: false,
+        Space: false
+    };
+
+    const sound = new SoundEngine();
+
+    // ==========================================
+    // 3. THREE.JS САХНА, КАМЕРА ЖӘНЕ ЖАРЫҚ
+    // ==========================================
+    const canvas = document.getElementById('game-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1021);
+    scene.fog = new THREE.FogExp2(0x0b1021, 0.0042);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.5, 600);
+
+    // Жарық көздері
+    const ambientLight = new THREE.AmbientLight(0x405080, 0.65);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xaaccff, 0.85);
+    dirLight.position.set(120, 180, 90);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    const d = 180;
+    dirLight.shadow.camera.left = -d;
+    dirLight.shadow.camera.right = d;
+    dirLight.shadow.camera.top = d;
+    dirLight.shadow.camera.bottom = -d;
+    dirLight.shadow.camera.near = 10;
+    dirLight.shadow.camera.far = 500;
+    scene.add(dirLight);
+
+    // Ойын нысандарының массивтері
+    const buildingColliders = [];
+    const vehicles = [];
+    const pickups = [];
+    const props = []; // Конустар, гидранттар
+    const particles = [];
+    const streetLampBulbs = [];
+
+    // ==========================================
+    // 4. ПРОЦЕДУРАЛЫҚ ТЕКСТУРАЛАР МЕН ҚАЛА ГЕНЕРАЦИЯСЫ
+    // ==========================================
+    function createBuildingTexture(isNightMode) {
+        const c = document.createElement('canvas');
+        c.width = 128;
+        c.height = 256;
+        const ctx = c.getContext('2d');
+
+        // Ғимарат қабырғасының түсі
+        const shades = ['#1e293b', '#27303f', '#334155', '#1f242d', '#2b2d42'];
+        ctx.fillStyle = shades[Math.floor(Math.random() * shades.length)];
+        ctx.fillRect(0, 0, 128, 256);
+
+        // Терезелер
+        const cols = 4;
+        const rows = 10;
+        const padX = 8;
+        const padY = 8;
+        const winW = (128 - padX * (cols + 1)) / cols;
+        const winH = (256 - padY * (rows + 1)) / rows;
+
+        for (let r = 0; r < rows; r++) {
+            for (let col = 0; col < cols; col++) {
+                const lit = Math.random() > (isNightMode ? 0.42 : 0.85);
+                if (lit) {
+                    ctx.fillStyle = Math.random() > 0.3 ? '#fde68a' : '#bae6fd';
+                } else {
+                    ctx.fillStyle = '#0f172a';
+                }
+                ctx.fillRect(
+                    padX + col * (winW + padX),
+                    padY + r * (winH + padY),
+                    winW,
+                    winH
+                );
+            }
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        return tex;
+    }
+
+    function buildCity() {
+        const worldSize = CITY_CONFIG.gridSize * CITY_CONFIG.totalStep + 120;
+
+        // Асфальт жер қабаты
+        const groundGeo = new THREE.PlaneGeometry(worldSize, worldSize);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0x1e2229,
+            roughness: 0.85,
+            metalness: 0.1
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const step = CITY_CONFIG.totalStep;
+        const startOffset = -((CITY_CONFIG.gridSize - 1) * step) / 2;
+
+        const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 });
+        const lineMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+        const whiteLineMat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0 });
+        const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.6, roughness: 0.4 });
+        const bulbMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+
+        for (let gx = 0; gx < CITY_CONFIG.gridSize; gx++) {
+            for (let gz = 0; gz < CITY_CONFIG.gridSize; gz++) {
+                const cx = startOffset + gx * step;
+                const cz = startOffset + gz * step;
+
+                // Тротуар (Квартал негізі)
+                const swGeo = new THREE.BoxGeometry(CITY_CONFIG.blockSize, 0.4, CITY_CONFIG.blockSize);
+                const swMesh = new THREE.Mesh(swGeo, sidewalkMat);
+                swMesh.position.set(cx, 0.2, cz);
+                swMesh.receiveShadow = true;
+                scene.add(swMesh);
+
+                // Жол жолақтары (Көлденең және тік)
+                const dashGeoH = new THREE.PlaneGeometry(4, 0.4);
+                for (let d = -20; d <= 20; d += 10) {
+                    const dash = new THREE.Mesh(dashGeoH, lineMat);
+                    dash.rotation.x = -Math.PI / 2;
+                    dash.position.set(cx + d, 0.03, cz + step / 2);
+                    scene.add(dash);
+
+                    const dashV = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 4), lineMat);
+                    dashV.rotation.x = -Math.PI / 2;
+                    dashV.position.set(cx + step / 2, 0.03, cz + d);
+                    scene.add(dashV);
+                }
+
+                // Жаяу жүргіншілер өткелі (Зебра)
+                for (let z = -5; z <= 5; z += 2.5) {
+                    const zebra = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.1), whiteLineMat);
+                    zebra.rotation.x = -Math.PI / 2;
+                    zebra.position.set(cx + CITY_CONFIG.blockSize / 2 + 2.2, 0.04, cz + z);
+                    scene.add(zebra);
+                }
+
+                // Орталық саябақ (Дәл ортадағы квартал - саябақ пен көлік жөндеу аймағы)
+                if (gx === Math.floor(CITY_CONFIG.gridSize / 2) && gz === Math.floor(CITY_CONFIG.gridSize / 2)) {
+                    const grassGeo = new THREE.BoxGeometry(CITY_CONFIG.blockSize - 4, 0.5, CITY_CONFIG.blockSize - 4);
+                    const grassMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.9 });
+                    const grass = new THREE.Mesh(grassGeo, grassMat);
+                    grass.position.set(cx, 0.25, cz);
+                    grass.receiveShadow = true;
+                    scene.add(grass);
+
+                    // Саябақтағы ағаштар
+                    for (let t = 0; t < 8; t++) {
+                        const tx = cx + (Math.random() - 0.5) * 32;
+                        const tz = cz + (Math.random() - 0.5) * 32;
+                        createTree(tx, tz);
+                    }
+                    continue;
+                }
+
+                // Әр кварталда 2-ден 4-ке дейін зәулім ғимараттар
+                const subOffsets = [
+                    [-11, -11], [11, -11],
+                    [-11, 11],  [11, 11]
+                ];
+
+                subOffsets.forEach(([ox, oz]) => {
+                    const bw = 16 + Math.random() * 4;
+                    const bd = 16 + Math.random() * 4;
+                    const bh = 18 + Math.random() * 52;
+
+                    const bTex = createBuildingTexture(true);
+                    const bMat = new THREE.MeshStandardMaterial({
+                        map: bTex,
+                        roughness: 0.5,
+                        metalness: 0.2
+                    });
+
+                    const bGeo = new THREE.BoxGeometry(bw, bh, bd);
+                    const bMesh = new THREE.Mesh(bGeo, bMat);
+                    const bx = cx + ox;
+                    const bz = cz + oz;
+                    bMesh.position.set(bx, bh / 2 + 0.4, bz);
+                    bMesh.castShadow = true;
+                    bMesh.receiveShadow = true;
+                    scene.add(bMesh);
+
+                    // Төбесіндегі антенна немесе кондиционер блогы
+                    if (bh > 45 && Math.random() > 0.4) {
+                        const spire = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.15, 0.4, 8),
+                            poleMat
+                        );
+                        spire.position.set(bx, bh + 4.4, bz);
+                        scene.add(spire);
+
+                        const beacon = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.45),
+                            new THREE.MeshBasicMaterial({ color: 0xef4444 })
+                        );
+                        beacon.position.set(bx, bh + 8.5, bz);
+                        scene.add(beacon);
+                    }
+
+                    // Ғимарат соқтығысу аймағын тіркеу
+                    buildingColliders.push({
+                        minX: bx - bw / 2,
+                        maxX: bx + bw / 2,
+                        minZ: bz - bd / 2,
+                        maxZ: bz + bd / 2
+                    });
+                });
+
+                // Көше шамдары (бұрыштарда)
+                const corners = [
+                    [cx - CITY_CONFIG.blockSize / 2 + 1, cz - CITY_CONFIG.blockSize / 2 + 1],
+                    [cx + CITY_CONFIG.blockSize / 2 - 1, cz + CITY_CONFIG.blockSize / 2 - 1]
+                ];
+                corners.forEach(([lx, lz]) => {
+                    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 7.5), poleMat);
+                    pole.position.set(lx, 3.75, lz);
+                    scene.add(pole);
+
+                    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.45), bulbMat);
+                    bulb.position.set(lx, 7.6, lz);
+                    scene.add(bulb);
+                    streetLampBulbs.push(bulb);
+
+                    // Жол конустары мен гидранттар (соғуға болатын ұсақ нысандар)
+                    if (Math.random() > 0.55) {
+                        createProp(lx + 1.8, lz);
+                    }
+                });
+            }
+        }
+
+        // Қала шекарасының қабырғалары
+        const limit = CITY_CONFIG.halfWorld + 20;
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+        const walls = [
+            { x: 0, z: -limit, w: limit * 2, d: 4 },
+            { x: 0, z: limit, w: limit * 2, d: 4 },
+            { x: -limit, z: 0, w: 4, d: limit * 2 },
+            { x: limit, z: 0, w: 4, d: limit * 2 }
+        ];
+        walls.forEach(w => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w.w, 8, w.d), wallMat);
+            mesh.position.set(w.x, 4, w.z);
+            scene.add(mesh);
+            buildingColliders.push({
+                minX: w.x - w.w / 2, maxX: w.x + w.w / 2,
+                minZ: w.z - w.d / 2, maxZ: w.z + w.d / 2
+            });
+        });
+    }
+
+    function createTree(x, z) {
+        const trunk = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.35, 0.5, 3),
+            new THREE.MeshStandardMaterial({ color: 0x78350f })
+        );
+        trunk.position.set(x, 1.8, z);
+        trunk.castShadow = true;
+        scene.add(trunk);
+
+        const leaves = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(2.4),
+            new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.8 })
+        );
+        leaves.position.set(x, 4.3, z);
+        leaves.castShadow = true;
+        scene.add(leaves);
+    }
+
+    function createProp(x, z) {
+        const coneGeo = new THREE.ConeGeometry(0.4, 1.1, 8);
+        const coneMat = new THREE.MeshStandardMaterial({ color: 0xf97316 });
+        const mesh = new THREE.Mesh(coneGeo, coneMat);
+        mesh.position.set(x, 0.75, z);
+        mesh.castShadow = true;
+        scene.add(mesh);
+        props.push({
+            mesh,
+            vx: 0, vy: 0, vz: 0,
+            hit: false
+        });
+    }
+
+    // ==========================================
+    // 5. 3D КӨЛІКТЕР ЖӘНЕ ОЙЫНШЫ КЕЙІПКЕРІ
+    // ==========================================
+    function createCar(x, z, colorHex, isPolice = false) {
+        const carGroup = new THREE.Group();
+        carGroup.position.set(x, 0, z);
+
+        // Көлік шанағы (Кузов)
+        const bodyMat = new THREE.MeshStandardMaterial({
+            color: colorHex,
+            metalness: 0.65,
+            roughness: 0.22
+        });
+        const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.75, 4.6), bodyMat);
+        chassis.position.y = 0.75;
+        chassis.castShadow = true;
+        chassis.receiveShadow = true;
+        carGroup.add(chassis);
+
+        // Кабина (Төбесі және әйнектері)
+        const cabinMat = new THREE.MeshStandardMaterial({
+            color: 0x0f172a,
+            metalness: 0.9,
+            roughness: 0.1
+        });
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.62, 2.3), cabinMat);
+        cabin.position.set(0, 1.38, -0.2);
+        cabin.castShadow = true;
+        carGroup.add(cabin);
+
+        // Спойлер (Спорттық стиль)
+        const spoiler = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 0.4), bodyMat);
+        spoiler.position.set(0, 1.25, -2.1);
+        carGroup.add(spoiler);
+
+        // Алдыңғы фаралар
+        const headLightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const hlLeft = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.22, 0.1), headLightMat);
+        hlLeft.position.set(-0.75, 0.8, 2.31);
+        const hlRight = hlLeft.clone();
+        hlRight.position.x = 0.75;
+        carGroup.add(hlLeft, hlRight);
+
+        // Нақты SpotLight фара сәулесі
+        const spotLight = new THREE.SpotLight(0xfffbeb, 2.2, 48, Math.PI / 5, 0.4, 1);
+        spotLight.position.set(0, 1.1, 2.2);
+        spotLight.target.position.set(0, 0.2, 18);
+        carGroup.add(spotLight);
+        carGroup.add(spotLight.target);
+
+        // Артқы стоп-шамдар
+        const tailLightMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+        const tlLeft = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.2, 0.1), tailLightMat);
+        tlLeft.position.set(-0.72, 0.82, -2.31);
+        const tlRight = tlLeft.clone();
+        tlRight.position.x = 0.72;
+        carGroup.add(tlLeft, tlRight);
+
+        // 4 Дөңгелек
+        const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 16);
+        wheelGeo.rotateZ(Math.PI / 2);
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8 });
+        const wheelPositions = [
+            [-1.15, 0.45, 1.4],
+            [1.15, 0.45, 1.4],
+            [-1.15, 0.45, -1.4],
+            [1.15, 0.45, -1.4]
+        ];
+        const wheels = wheelPositions.map(([wx, wy, wz]) => {
+            const w = new THREE.Mesh(wheelGeo, wheelMat);
+            w.position.set(wx, wy, wz);
+            w.castShadow = true;
+            carGroup.add(w);
+            return w;
+        });
+
+        scene.add(carGroup);
+
+        const carObj = {
+            mesh: carGroup,
+            chassis,
+            wheels,
+            spotLight,
+            tailLightMat,
+            speed: 0,
+            steerAngle: 0,
+            maxSpeed: isPolice ? 1.15 : 1.35,
+            accel: 0.026,
+            isPolice
+        };
+        vehicles.push(carObj);
+        return carObj;
+    }
+
+    // Ойыншы кейіпкері (Көліктен шыққанда жаяу жүру үшін)
+    function createPlayerCharacter() {
+        const group = new THREE.Group();
+        
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(0.7, 1.0, 0.45),
+            new THREE.MeshStandardMaterial({ color: 0x10b981 }) // Жасыл күртеше
+        );
+        body.position.y = 1.1;
+        body.castShadow = true;
+        group.add(body);
+
+        const head = new THREE.Mesh(
+            new THREE.BoxGeometry(0.45, 0.45, 0.45),
+            new THREE.MeshStandardMaterial({ color: 0xfcd34d })
+        );
+        head.position.y = 1.85;
+        head.castShadow = true;
+        group.add(head);
+
+        const legs = new THREE.Mesh(
+            new THREE.BoxGeometry(0.65, 0.7, 0.4),
+            new THREE.MeshStandardMaterial({ color: 0x1e293b })
+        );
+        legs.position.y = 0.35;
+        legs.castShadow = true;
+        group.add(legs);
+
+        group.visible = false;
+        scene.add(group);
+        return {
+            mesh: group,
+            vy: 0,
+            onGround: true
+        };
+    }
+
+    const playerChar = createPlayerCharacter();
+
+    // ==========================================
+    // 6. АҚША, МИССИЯ ЖӘНЕ ЖӨНДЕУ АЙМАҚТАРЫ
+    // ==========================================
+    const repairZone = new THREE.Mesh(
+        new THREE.CylinderGeometry(4.5, 4.5, 0.25, 32),
+        new THREE.MeshBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.65 })
+    );
+    repairZone.position.set(0, 0.15, 0); // Орталық саябақ жанындағы жол
+    scene.add(repairZone);
+
+    const missionStartMarker = new THREE.Mesh(
+        new THREE.CylinderGeometry(4, 4, 0.3, 32),
+        new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.75 })
+    );
+    missionStartMarker.position.set(CITY_CONFIG.totalStep, 0.15, 0);
+    scene.add(missionStartMarker);
+
+    const missionDestMarker = new THREE.Mesh(
+        new THREE.CylinderGeometry(5, 5, 0.35, 32),
+        new THREE.MeshBasicMaterial({ color: 0xf43f5e, transparent: true, opacity: 0.8 })
+    );
+    missionDestMarker.visible = false;
+    scene.add(missionDestMarker);
+
+    function spawnPickups() {
+        const cashGeo = new THREE.BoxGeometry(1.4, 0.8, 0.3);
+        const cashMat = new THREE.MeshStandardMaterial({
+            color: 0x10b981,
+            emissive: 0x059669,
+            emissiveIntensity: 0.6
+        });
+
+        const step = CITY_CONFIG.totalStep;
+        const start = -((CITY_CONFIG.gridSize - 1) * step) / 2;
+
+        for (let i = 0; i < 28; i++) {
+            const gx = Math.floor(Math.random() * CITY_CONFIG.gridSize);
+            const gz = Math.floor(Math.random() * CITY_CONFIG.gridSize);
+            const x = start + gx * step + step / 2;
+            const z = start + gz * step + (Math.random() - 0.5) * 30;
+
+            const mesh = new THREE.Mesh(cashGeo, cashMat);
+            mesh.position.set(x, 1.3, z);
+            scene.add(mesh);
+            pickups.push({ mesh, active: true, respawnTimer: 0 });
+        }
+    }
+
+    function spawnSmokeParticle(x, y, z) {
+        const geo = new THREE.SphereGeometry(0.35 + Math.random() * 0.3, 6, 6);
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0xcbd5e1,
+            transparent: true,
+            opacity: 0.55
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, y, z);
+        scene.add(mesh);
+        particles.push({ mesh, life: 1.0 });
+    }
+
+    // ==========================================
+    // 7. ХАБАРЛАМАЛАР МЕН МИССИЯ ЛОГИКАСЫ
+    // ==========================================
+    let toastTimeout = null;
+    function showToast(text, colorClass = 'border-emerald-400 text-emerald-300') {
+        const el = document.getElementById('center-toast');
+        el.textContent = text;
+        el.className = `self-center px-6 py-3 rounded-2xl bg-slate-950/90 border-2 ${colorClass} font-black text-base sm:text-xl tracking-wide uppercase gta-shadow opacity-100 transition-opacity duration-300 text-center`;
+        
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+            el.classList.remove('opacity-100');
+            el.classList.add('opacity-0');
+        }, 2500);
+    }
+
+    function updateCash(amount) {
+        state.cash = Math.max(0, state.cash + amount);
+        document.getElementById('cash-display').textContent = '$' + String(state.cash).padStart(7, '0');
+    }
+
+    function setWantedLevel(lvl) {
+        state.wantedLevel = Math.min(5, Math.max(0, lvl));
+        if (state.wantedLevel > 0) {
+            state.wantedTimer = 18; // 18 секунд тыныш жүрсе жұлдыз азаяды
+        }
+        const stars = document.querySelectorAll('#stars-container .star');
+        stars.forEach((star, idx) => {
+            if (idx < state.wantedLevel) {
+                star.className = 'star text-amber-400 wanted-active';
+            } else {
+                star.className = 'star text-slate-600';
+            }
+        });
+
+        const sirenEl = document.getElementById('siren-effect');
+        if (state.wantedLevel > 0) {
+            sirenEl.classList.remove('hidden');
+        } else {
+            sirenEl.classList.add('hidden');
+        }
+    }
+
+    function startMission() {
+        if (state.missionActive) return;
+        state.missionActive = true;
+        state.missionTimeLeft = 35;
+        state.missionMaxTime = 35;
+
+        // Қаланың басқа шетінен кездейсоқ нүкте таңдау
+        const step = CITY_CONFIG.totalStep;
+        const start = -((CITY_CONFIG.gridSize - 1) * step) / 2;
+        const gx = Math.floor(Math.random() * CITY_CONFIG.gridSize);
+        const gz = Math.floor(Math.random() * CITY_CONFIG.gridSize);
+        const tx = start + gx * step + step / 2;
+        const tz = start + gz * step + step / 2;
+
+        missionDestMarker.position.set(tx, 0.15, tz);
+        missionDestMarker.visible = true;
+        missionStartMarker.visible = false;
+
+        document.getElementById('mission-title').textContent = '⏱️ ЖЕДЕЛ ЖЕТКІЗУ МИССИЯСЫ';
+        document.getElementById('mission-desc').textContent = 'Радардағы қызыл нүктеге уақыт біткенше жетіңіз! Сыйақы: $1,500';
+        document.getElementById('mission-timer-bar').classList.remove('hidden');
+        showToast('МИССИЯ БАСТАЛДЫ! ҚЫЗЫЛ НҮКТЕГЕ ЖЕТІҢІЗ!', 'border-amber-400 text-amber-300');
+    }
+
+    function endMission(success) {
+        state.missionActive = false;
+        missionDestMarker.visible = false;
+        missionStartMarker.visible = true;
+        document.getElementById('mission-timer-bar').classList.add('hidden');
+
+        if (success) {
+            updateCash(1500);
+            sound.playPickup('mission');
+            showToast('МИССИЯ ОРЫНДАЛДЫ! +$1,500', 'border-emerald-400 text-emerald-300');
+            document.getElementById('mission-title').textContent = '✅ МИССИЯ СӘТТІ АЯҚТАЛДЫ';
+            document.getElementById('mission-desc').textContent = 'Келесі миссия үшін сары шеңберге барыңыз.';
+        } else {
+            showToast('УАҚЫТ БІТТІ! МИССИЯ СӘТСІЗ АЯҚТАЛДЫ', 'border-rose-500 text-rose-400');
+            document.getElementById('mission-title').textContent = '❌ УАҚЫТ БІТТІ';
+            document.getElementById('mission-desc').textContent = 'Қайта көру үшін сары шеңберге барыңыз.';
+        }
+    }
+
+    // ==========================================
+    // 8. СОҚТЫҒЫСУДЫ ТЕКСЕРУ (COLLISION)
+    // ==========================================
+    function checkBuildingCollision(x, z, radius) {
+        for (let i = 0; i < buildingColliders.length; i++) {
+            const b = buildingColliders[i];
+            const closestX = Math.max(b.minX, Math.min(x, b.maxX));
+            const closestZ = Math.max(b.minZ, Math.min(z, b.maxZ));
+            const dx = x - closestX;
+            const dz = z - closestZ;
+            if ((dx * dx + dz * dz) < radius * radius) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ==========================================
+    // 9. КӨЛІККЕ ОТЫРУ / ШЫҒУ ЖӘНЕ БАСҚАРУ
+    // ==========================================
+    function toggleEnterExitVehicle() {
+        const btn = document.getElementById('btn-enter-exit');
+        const modeText = document.getElementById('mode-display');
+
+        if (state.inVehicle) {
+            // Көліктен шығу
+            state.inVehicle = false;
+            const carPos = state.activeCar.mesh.position;
+            const exitOffset = new THREE.Vector3(-2.3, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.activeCar.mesh.rotation.y);
+            
+            playerChar.mesh.position.set(carPos.x + exitOffset.x, 0, carPos.z + exitOffset.z);
+            playerChar.mesh.rotation.y = state.activeCar.mesh.rotation.y;
+            playerChar.mesh.visible = true;
+
+            btn.textContent = '🚗 КӨЛІККЕ ОТЫРУ (F)';
+            modeText.textContent = 'ЖАЯУ';
+            modeText.className = 'text-xs sm:text-sm font-black text-emerald-400';
+            showToast('СІЗ КӨЛІКТЕН ШЫҚТЫҢЫЗ', 'border-sky-400 text-sky-300');
+        } else {
+            // Ең жақын көлікті табу
+            let nearestCar = null;
+            let minDist = 6.5;
+            vehicles.forEach(v => {
+                const dist = playerChar.mesh.position.distanceTo(v.mesh.position);
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearestCar = v;
+                }
+            });
+
+            if (nearestCar) {
+                state.inVehicle = true;
+                state.activeCar = nearestCar;
+                playerChar.mesh.visible = false;
+
+                btn.textContent = '🚪 КӨЛІКТЕН ШЫҒУ (F)';
+                modeText.textContent = 'КӨЛІКТЕ';
+                modeText.className = 'text-xs sm:text-sm font-black text-amber-400';
+                showToast('КӨЛІККЕ ОТЫРДЫҢЫЗ!', 'border-emerald-400 text-emerald-300');
+            } else {
+                showToast('ЖАҚЫН МАҢДА КӨЛІК ЖОҚ!', 'border-rose-400 text-rose-300');
+            }
+        }
+    }
+
+    function resetCarPosition() {
+        if (!state.activeCar) return;
+        const step = CITY_CONFIG.totalStep;
+        // Ең жақын жол қиылысына қою
+        const rx = Math.round(state.activeCar.mesh.position.x / step) * step + step / 2;
+        const rz = Math.round(state.activeCar.mesh.position.z / step) * step + step / 2;
+        state.activeCar.mesh.position.set(rx, 0, rz);
+        state.activeCar.speed = 0;
+        showToast('КӨЛІК ЖОЛҒА ҚАЙТА ҚОЙЫЛДЫ', 'border-sky-400 text-sky-300');
+    }
+
+    // ==========================================
+    // 10. КҮН / ТҮН ЖӘНЕ КАМЕРА АУЫСТЫРУ
+    // ==========================================
+    function toggleDayNight() {
+        state.isNight = !state.isNight;
+        const icon = document.getElementById('daynight-icon');
+        if (state.isNight) {
+            scene.background = new THREE.Color(0x0b1021);
+            scene.fog.color = new THREE.Color(0x0b1021);
+            ambientLight.intensity = 0.65;
+            dirLight.intensity = 0.85;
+            dirLight.color.setHex(0xaaccff);
+            vehicles.forEach(v => v.spotLight.intensity = 2.2);
+            streetLampBulbs.forEach(b => b.material.color.setHex(0xfef08a));
+            icon.textContent = '🌙';
+            showToast('ТҮНГІ МЕГАПОЛИС РЕЖИМІ', 'border-indigo-400 text-indigo-300');
+        } else {
+            scene.background = new THREE.Color(0x38bdf8);
+            scene.fog.color = new THREE.Color(0x7dd3fc);
+            ambientLight.intensity = 1.15;
+            dirLight.intensity = 1.4;
+            dirLight.color.setHex(0xfffbeb);
+            vehicles.forEach(v => v.spotLight.intensity = 0.0);
+            streetLampBulbs.forEach(b => b.material.color.setHex(0x94a3b8));
+            icon.textContent = '☀️';
+            showToast('КҮНДІЗГІ ҚАЛА РЕЖИМІ', 'border-amber-400 text-amber-300');
+        }
+    }
+
+    function cycleCamera() {
+        state.cameraMode = (state.cameraMode + 1) % 3;
+        const labels = ['КАМЕРА: 3-ЖАҚ', 'КАМЕРА: КАПОТ', 'КАМЕРА: ЖОҒАРЫДАН'];
+        document.getElementById('cam-label').textContent = labels[state.cameraMode];
+    }
+
+    // ==========================================
+    // 11. МИНИ-КАРТА (РАДАР) СЫЗУ
+    // ==========================================
+    const minimapCanvas = document.getElementById('minimap-canvas');
+    const mCtx = minimapCanvas.getContext('2d');
+
+    function drawMinimap() {
+        const w = minimapCanvas.width;
+        const h = minimapCanvas.height;
+        mCtx.clearRect(0, 0, w, h);
+
+        // Радар фоны
+        mCtx.fillStyle = '#0f172a';
+        mCtx.fillRect(0, 0, w, h);
+
+        const targetObj = state.inVehicle ? state.activeCar.mesh : playerChar.mesh;
+        const px = targetObj.position.x;
+        const pz = targetObj.position.z;
+        const rot = targetObj.rotation.y;
+        const scale = 0.85;
+
+        mCtx.save();
+        mCtx.translate(w / 2, h / 2);
+        // Ойыншы бағытына қарай радарды айналдыру
+        mCtx.rotate(rot);
+
+        // Ғимараттарды радарға сызу
+        mCtx.fillStyle = '#334155';
+        buildingColliders.forEach(b => {
+            const rx = (b.minX - px) * scale;
+            const rz = (b.minZ - pz) * scale;
+            const rw = (b.maxX - b.minX) * scale;
+            const rd = (b.maxZ - b.minZ) * scale;
+            if (Math.abs(rx) < w && Math.abs(rz) < h) {
+                mCtx.fillRect(-rx - rw, -rz - rd, rw, rd);
+            }
+        });
+
+        // Жөндеу аймағы (Көк нүкте)
+        mCtx.fillStyle = '#0ea5e9';
+        mCtx.beginPath();
+        mCtx.arc(-(repairZone.position.x - px) * scale, -(repairZone.position.z - pz) * scale, 5, 0, Math.PI * 2);
+        mCtx.fill();
+
+        // Миссия бастау (Сары нүкте)
+        if (missionStartMarker.visible) {
+            mCtx.fillStyle = '#facc15';
+            mCtx.beginPath();
+            mCtx.arc(-(missionStartMarker.position.x - px) * scale, -(missionStartMarker.position.z - pz) * scale, 5, 0, Math.PI * 2);
+            mCtx.fill();
+        }
+
+        // Миссия мәресі (Қызыл нүкте)
+        if (missionDestMarker.visible) {
+            mCtx.fillStyle = '#f43f5e';
+            mCtx.beginPath();
+            mCtx.arc(-(missionDestMarker.position.x - px) * scale, -(missionDestMarker.position.z - pz) * scale, 6, 0, Math.PI * 2);
+            mCtx.fill();
+        }
+
+        // Ақшалар (Жасыл ұсақ нүктелер)
+        mCtx.fillStyle = '#10b981';
+        pickups.forEach(p => {
+            if (!p.active) return;
+            mCtx.fillRect(-(p.mesh.position.x - px) * scale - 2, -(p.mesh.position.z - pz) * scale - 2, 4, 4);
+        });
+
+        // Басқа көліктер (Ақ нүктелер)
+        mCtx.fillStyle = '#e2e8f0';
+        vehicles.forEach(v => {
+            if (v === state.activeCar && state.inVehicle) return;
+            mCtx.fillRect(-(v.mesh.position.x - px) * scale - 2.5, -(v.mesh.position.z - pz) * scale - 2.5, 5, 5);
+        });
+
+        mCtx.restore();
+    }
+
+    // ==========================================
+    // 12. НЕГІЗГІ ФИЗИКА ЖӘНЕ АНИМАЦИЯ ЦИКЛІ
+    // ==========================================
+    const clock = new THREE.Clock();
+
+    function updatePhysics(dt, elapsedTime) {
+        const up = keys.ArrowUp || keys.KeyW;
+        const down = keys.ArrowDown || keys.KeyS;
+        const left = keys.ArrowLeft || keys.KeyA;
+        const right = keys.ArrowRight || keys.KeyD;
+        const brake = keys.Space;
+
+        if (state.inVehicle && state.activeCar) {
+            const car = state.activeCar;
+
+            // Үдеу және тежелу
+            if (up) {
+                car.speed = Math.min(car.maxSpeed, car.speed + car.accel);
+            } else if (down) {
+                car.speed = Math.max(-car.maxSpeed * 0.45, car.speed - car.accel * 1.3);
+            } else {
+                // Табиғи үйкеліс
+                car.speed *= 0.975;
+                if (Math.abs(car.speed) < 0.005) car.speed = 0;
+            }
+
+            // Қол тежегіш (Дрифт)
+            if (brake) {
+                car.speed *= 0.94;
+                car.tailLightMat.color.setHex(0xff9999);
+            } else {
+                car.tailLightMat.color.setHex(down ? 0xff4444 : 0x991b1b);
+            }
+
+            // Рөл бұру
+            const steerDir = (left ? 1 : 0) - (right ? 1 : 0);
+            const turnFactor = brake ? 0.055 : 0.038;
+            if (Math.abs(car.speed) > 0.02) {
+                const reverseSign = car.speed >= 0 ? 1 : -1;
+                car.mesh.rotation.y += steerDir * turnFactor * reverseSign * Math.min(1, Math.abs(car.speed) * 2.5);
+            }
+
+            // Шанақтың бұрылыста қисаюы (Suspension tilt)
+            car.chassis.rotation.z = THREE.MathUtils.lerp(car.chassis.rotation.z, -steerDir * car.speed * 0.14, 0.15);
+
+            // Дөңгелектерді айналдыру
+            car.wheels.forEach((w, idx) => {
+                w.rotation.x += car.speed * 0.8;
+                if (idx < 2) w.rotation.y = steerDir * 0.35;
+            });
+
+            // Дрифт түтіні
+            if (brake && Math.abs(car.speed) > 0.35 && Math.random() > 0.3) {
+                const backPos = new THREE.Vector3(0, 0.3, -2.0).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.mesh.rotation.y);
+                spawnSmokeParticle(car.mesh.position.x + backPos.x, 0.3, car.mesh.position.z + backPos.z);
+            }
+
+            // Алға жылжу және ғимараттармен соқтығысуды тексеру
+            const vx = Math.sin(car.mesh.rotation.y) * car.speed;
+            const vz = Math.cos(car.mesh.rotation.y) * car.speed;
+
+            const nextX = car.mesh.position.x + vx;
+            const nextZ = car.mesh.position.z + vz;
+
+            if (!checkBuildingCollision(nextX, car.mesh.position.z, 2.0)) {
+                car.mesh.position.x = nextX;
+            } else {
+                if (Math.abs(car.speed) > 0.5) sound.playPickup('crash');
+                car.speed = -car.speed * 0.4;
+            }
+
+            if (!checkBuildingCollision(car.mesh.position.x, nextZ, 2.0)) {
+                car.mesh.position.z = nextZ;
+            } else {
+                if (Math.abs(car.speed) > 0.5) sound.playPickup('crash');
+                car.speed = -car.speed * 0.4;
+            }
+
+            // Жылдамдықты арттырғаны үшін іздеу жұлдызы (өте сирек, егер қатты жүйткісе)
+            const kmh = Math.round(Math.abs(car.speed) * 165);
+            document.getElementById('speed-display').textContent = kmh;
+            if (kmh > 210 && state.wantedLevel === 0 && Math.random() < 0.004) {
+                setWantedLevel(1);
+                showToast('ЖЫЛДАМДЫҚТЫ АСЫРДЫҢЫЗ! ПОЛИЦИЯ ІЗДЕУДЕ!', 'border-rose-500 text-rose-400');
+            }
+
+            sound.update(car.speed / car.maxSpeed, true, state.wantedLevel, elapsedTime);
+
+        } else {
+            // Жаяу жүру физикасы
+            const walkSpeed = 0.24;
+            const steerDir = (left ? 1 : 0) - (right ? 1 : 0);
+            playerChar.mesh.rotation.y += steerDir * 0.06;
+
+            let moveSpeed = 0;
+            if (up) moveSpeed = walkSpeed;
+            if (down) moveSpeed = -walkSpeed * 0.6;
+
+            const nx = playerChar.mesh.position.x + Math.sin(playerChar.mesh.rotation.y) * moveSpeed;
+            const nz = playerChar.mesh.position.z + Math.cos(playerChar.mesh.rotation.y) * moveSpeed;
+
+            if (!checkBuildingCollision(nx, playerChar.mesh.position.z, 0.7)) playerChar.mesh.position.x = nx;
+            if (!checkBuildingCollision(playerChar.mesh.position.x, nz, 0.7)) playerChar.mesh.position.z = nz;
+
+            // Секіру (Space)
+            if (brake && playerChar.onGround) {
+                playerChar.vy = 0.25;
+                playerChar.onGround = false;
+            }
+            playerChar.mesh.position.y += playerChar.vy;
+            if (playerChar.mesh.position.y > 0) {
+                playerChar.vy -= 0.015;
+            } else {
+                playerChar.mesh.position.y = 0;
+                playerChar.vy = 0;
+                playerChar.onGround = true;
+            }
+
+            document.getElementById('speed-display').textContent = moveSpeed !== 0 ? '12' : '0';
+            sound.update(0, false, state.wantedLevel, elapsedTime);
+        }
+
+        // Ойыншының ағымдағы координаттары
+        const playerPos = state.inVehicle ? state.activeCar.mesh.position : playerChar.mesh.position;
+
+        // Ақша жинау тексерісі
+        pickups.forEach(p => {
+            if (!p.active) {
+                p.respawnTimer -= dt;
+                if (p.respawnTimer <= 0) {
+                    p.active = true;
+                    p.mesh.visible = true;
+                }
+                return;
+            }
+            p.mesh.rotation.y += 0.04;
+            p.mesh.position.y = 1.2 + Math.sin(elapsedTime * 4) * 0.2;
+
+            if (playerPos.distanceTo(p.mesh.position) < 3.2) {
+                p.active = false;
+                p.mesh.visible = false;
+                p.respawnTimer = 15;
+                updateCash(250);
+                sound.playPickup('cash');
+                showToast('+$250 ҚОЛМА-ҚОЛ АҚША!', 'border-emerald-400 text-emerald-300');
+            }
+        });
+
+        // Көше конустарын қағып кету (Іздеу деңгейін көтереді)
+        props.forEach(prop => {
+            if (!prop.hit && playerPos.distanceTo(prop.mesh.position) < 2.4) {
+                prop.hit = true;
+                prop.vx = (Math.random() - 0.5) * 0.6;
+                prop.vy = 0.35;
+                prop.vz = (Math.random() - 0.5) * 0.6;
+                sound.playPickup('crash');
+                if (state.wantedLevel < 3) {
+                    setWantedLevel(state.wantedLevel + 1);
+                    showToast('ҚАЛА МҮЛКІНЕ ЗИЯН! ІЗДЕУ ДЕҢГЕЙІ ӨСТІ!', 'border-rose-500 text-rose-400');
+                }
+            }
+            if (prop.hit && prop.mesh.position.y > -2) {
+                prop.mesh.position.x += prop.vx;
+                prop.mesh.position.y += prop.vy;
+                prop.mesh.position.z += prop.vz;
+                prop.vy -= 0.02;
+                prop.mesh.rotation.x += 0.15;
+            }
+        });
+
+        // Жөндеу / Іздеуді өшіру аймағы (Pay 'n' Spray)
+        if (playerPos.distanceTo(repairZone.position) < 5.0 && state.wantedLevel > 0) {
+            setWantedLevel(0);
+            sound.playPickup('mission');
+            showToast('КӨЛІК БОЯЛДЫ! ІЗДЕУ ДЕҢГЕЙІ ТАЗАРТЫЛДЫ!', 'border-sky-400 text-sky-300');
+        }
+
+        // Миссия триггерлері
+        if (!state.missionActive && missionStartMarker.visible) {
+            if (playerPos.distanceTo(missionStartMarker.position) < 4.5) {
+                startMission();
+            }
+        } else if (state.missionActive) {
+            state.missionTimeLeft -= dt;
+            document.getElementById('mission-time-text').textContent = Math.max(0, state.missionTimeLeft).toFixed(1) + ' с';
+            document.getElementById('mission-progress').style.width = `${(state.missionTimeLeft / state.missionMaxTime) * 100}%`;
+
+            if (playerPos.distanceTo(missionDestMarker.position) < 5.5) {
+                endMission(true);
+            } else if (state.missionTimeLeft <= 0) {
+                endMission(false);
+            }
+        }
+
+        // Іздеу жұлдыздарының уақыт өте келе азаюы
+        if (state.wantedLevel > 0) {
+            state.wantedTimer -= dt;
+            if (state.wantedTimer <= 0) {
+                setWantedLevel(state.wantedLevel - 1);
+                if (state.wantedLevel === 0) {
+                    showToast('ПОЛИЦИЯ СІЗДІ ЖОҒАЛТЫП АЛДЫ!', 'border-emerald-400 text-emerald-300');
+                }
+            }
+        }
+
+        // Түтін бөлшектерін жаңарту
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const pt = particles[i];
+            pt.life -= dt * 1.8;
+            pt.mesh.position.y += 0.03;
+            pt.mesh.scale.addScalar(0.04);
+            pt.mesh.material.opacity = pt.life * 0.5;
+            if (pt.life <= 0) {
+                scene.remove(pt.mesh);
+                particles.splice(i, 1);
+            }
+        }
+
+        // Камера позициясын жаңарту
+        updateCamera();
+    }
+
+    function updateCamera() {
+        const target = state.inVehicle ? state.activeCar.mesh : playerChar.mesh;
+        const pos = target.position;
+        const rot = target.rotation.y;
+
+        if (state.cameraMode === 0) {
+            // 3-жақ GTA камерасы
+            const dist = state.inVehicle ? 10.5 : 6.0;
+            const height = state.inVehicle ? 4.8 : 3.2;
+            const idealX = pos.x - Math.sin(rot) * dist;
+            const idealZ = pos.z - Math.cos(rot) * dist;
+            camera.position.lerp(new THREE.Vector3(idealX, pos.y + height, idealZ), 0.14);
+            camera.lookAt(pos.x + Math.sin(rot) * 4, pos.y + 1.5, pos.z + Math.cos(rot) * 4);
+        } else if (state.cameraMode === 1) {
+            // Капоттан / 1-жақ камерасы
+            const offset = new THREE.Vector3(0, state.inVehicle ? 1.85 : 1.9, state.inVehicle ? 0.6 : 0.2)
+                .applyAxisAngle(new THREE.Vector3(0, 1, 0), rot);
+            camera.position.set(pos.x + offset.x, pos.y + offset.y, pos.z + offset.z);
+            camera.lookAt(pos.x + Math.sin(rot) * 25, pos.y + 1.4, pos.z + Math.cos(rot) * 25);
+        } else {
+            // Классикалық GTA 2 жоғарыдан көрініс
+            camera.position.lerp(new THREE.Vector3(pos.x, pos.y + 34, pos.z - 8), 0.15);
+            camera.lookAt(pos.x, pos.y, pos.z);
+        }
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.05);
+        const elapsedTime = clock.getElapsedTime();
+
+        if (state.started) {
+            updatePhysics(dt, elapsedTime);
+            drawMinimap();
+        } else {
+            // Мәзір экранында қаланы әдемі айналдырып көрсету
+            camera.position.x = Math.sin(elapsedTime * 0.15) * 90;
+            camera.position.z = Math.cos(elapsedTime * 0.15) * 90;
+            camera.position.y = 45;
+            camera.lookAt(0, 10, 0);
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    // ==========================================
+    // 13. ОҚИҒАЛАРДЫ ТІРКЕУ (КЛАВИАТУРА, СЕНСОР, UI)
+    // ==========================================
+    window.addEventListener('keydown', (e) => {
+        if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+        if (!state.started) return;
+
+        if (e.code === 'KeyF') toggleEnterExitVehicle();
+        if (e.code === 'KeyC') cycleCamera();
+        if (e.code === 'KeyR') resetCarPosition();
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+    });
+
+    // Мобильді батырмалар (Touch оқиғалары)
+    document.querySelectorAll('.touch-btn').forEach(btn => {
+        const keyCode = btn.getAttribute('data-key');
+        const press = (e) => {
+            e.preventDefault();
+            keys[keyCode] = true;
+            btn.classList.add('pressed');
+        };
+        const release = (e) => {
+            e.preventDefault();
+            keys[keyCode] = false;
+            btn.classList.remove('pressed');
+        };
+        btn.addEventListener('touchstart', press, { passive: false });
+        btn.addEventListener('touchend', release, { passive: false });
+        btn.addEventListener('mousedown', press);
+        btn.addEventListener('mouseup', release);
+        btn.addEventListener('mouseleave', release);
+    });
+
+    // UI батырмалары
+    document.getElementById('start-btn').addEventListener('click', () => {
+        sound.init();
+        state.started = true;
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('hud').classList.remove('hidden');
+        showToast('ҚОШ КЕЛДІҢІЗ! СӘТТІ САПАР!', 'border-emerald-400 text-emerald-300');
+    });
+
+    document.getElementById('btn-daynight').addEventListener('click', toggleDayNight);
+    document.getElementById('btn-camera').addEventListener('click', cycleCamera);
+    document.getElementById('btn-reset').addEventListener('click', resetCarPosition);
+    document.getElementById('btn-enter-exit').addEventListener('click', toggleEnterExitVehicle);
+
+    document.getElementById('btn-sound').addEventListener('click', () => {
+        sound.init();
+        const isMuted = sound.toggleMute();
+        document.getElementById('sound-icon').textContent = isMuted ? '🔇' : '🔊';
+    });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ==========================================
+    // 14. ӘЛЕМДІ ІСКЕ ҚОСУ
+    // ==========================================
+    window.onload = function() {
+        buildCity();
+        spawnPickups();
+
+        // Ойыншының негізгі спорттық көлігі (Қызыл Ferrari стилінде)
+        state.activeCar = createCar(CITY_CONFIG.totalStep / 2, CITY_CONFIG.totalStep / 2, 0xe11d48);
+
+        // Қала көшелеріне ұрлап мінуге болатын қосымша көліктер қою
+        const step = CITY_CONFIG.totalStep;
+        createCar(-step / 2, step / 2, 0xf59e0b);        // Сары спорткар
+        createCar(step * 1.5, -step / 2, 0x0ea5e9);      // Көк купе
+        createCar(-step * 1.5, -step * 1.5, 0x10b981);   // Жасыл маслкар
+        createCar(step / 2, -step * 1.5, 0x8b5cf6);      // Күлгін суперкар
+
+        animate();
+    };
+    </script>
+</body>
